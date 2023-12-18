@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 
 class map01 extends StatelessWidget {
@@ -16,38 +17,93 @@ class point extends StatefulWidget {
   State<point> createState() => _mapState();
 }
 
-class _mapState extends State<point> {
-  final widgets = [];
+class _mapState extends State<point> with AutomaticKeepAliveClientMixin {
+  final widgets = <Key, Widget>{};
+  late Color iconColor;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    iconColor = getRandomColor(); // initStateでランダムな視認しやすい色を生成
+  }
 
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (tapDownDetails) {
-        widgets.add(
-          Positioned(
-            left: tapDownDetails.localPosition.dx,
-            top: tapDownDetails.localPosition.dy,
-            child: Icon(
-              Icons.cruelty_free,
-              color: Colors.redAccent,
-            ),
+    super.build(context);
+    return Stack(
+      children: [
+        GestureDetector(
+          onTapDown: (tapDownDetails) {
+            final key = UniqueKey();
+            widgets[key] = Positioned(
+              key: key,
+              left: tapDownDetails.localPosition.dx - 12,
+              top: tapDownDetails.localPosition.dy - 12,
+              child: GestureDetector(
+                onDoubleTap: () {
+                  setState(() {
+                    widgets.remove(key);
+                  });
+                },
+                child: Icon(
+                  Icons.cruelty_free,
+                  color: iconColor,
+                ),
+              ),
+            );
+            setState(() {});
+          },
+          child: Stack(
+            children: [
+              Container(
+                child: Image.asset(
+                  'images/elpis.jpg',
+                  fit: BoxFit.contain,
+                ),
+                padding: EdgeInsets.all(10),
+                color: Colors.blueGrey,
+              ),
+              ...widgets.values,
+            ],
           ),
-        );
-        setState(() {});
-      },
-      child: Stack(
-        // fit: StackFit.expand,
-        children: [
-          Container(
-            child: Image.asset(
-              'images/elpis.jpg',
-              fit: BoxFit.contain,
-            ),
-            padding: EdgeInsets.all(10),
-            color: Colors.blueGrey,
+        ),
+        // 全削除ボタンを追加
+        Positioned(
+          bottom: 20,
+          right: 20,
+          child: FloatingActionButton(
+            onPressed: () {
+              setState(() {
+                widgets.clear();
+              });
+            },
+            child: Icon(Icons.delete),
           ),
-          ...widgets,
-        ],
-      ),
+        ),
+      ],
     );
+  }
+
+// 視認しやすい10色のリスト
+  List<Color> colors = [
+    Colors.red,
+    Colors.green,
+    Colors.blue,
+    Colors.orange,
+    Colors.purple,
+    Colors.cyan,
+    Colors.pink,
+    Colors.indigo,
+    Colors.black,
+    Colors.white,
+  ];
+
+// ランダムな視認しやすい色を生成する関数
+  Color getRandomColor() {
+    Random random = Random();
+    int index = random.nextInt(colors.length); // 0 to 9
+    return colors[index];
   }
 }
