@@ -42,7 +42,7 @@ class _mapState extends State<point> with AutomaticKeepAliveClientMixin {
               left: tapDownDetails.localPosition.dx - 12,
               top: tapDownDetails.localPosition.dy - 12,
               child: GestureDetector(
-                onDoubleTap: () {
+                onTap: () {
                   setState(() {
                     widgets.remove(key);
                   });
