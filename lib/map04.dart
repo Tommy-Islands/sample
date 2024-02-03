@@ -1,8 +1,9 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class map04 extends StatelessWidget {
-  const map04({super.key});
+  const map04({Key? key});
 
   @override
   Widget build(BuildContext context) {
@@ -11,15 +12,17 @@ class map04 extends StatelessWidget {
 }
 
 class point extends StatefulWidget {
-  const point({super.key});
+  const point({Key? key});
 
   @override
   State<point> createState() => _mapState();
 }
 
 class _mapState extends State<point> with AutomaticKeepAliveClientMixin {
-  final widgets = <Key, Widget>{};
   late Color iconColor;
+  late String userId;
+  final CollectionReference iconsCollection04 =
+      FirebaseFirestore.instance.collection('icons04');
 
   @override
   bool get wantKeepAlive => true;
@@ -27,66 +30,103 @@ class _mapState extends State<point> with AutomaticKeepAliveClientMixin {
   @override
   void initState() {
     super.initState();
-    iconColor = getRandomColor(); // initStateでランダムな視認しやすい色を生成
+    userId = getUserId(); // 初期化時にユーザーIDを生成
+    iconColor = getRandomColor();
   }
 
   Widget build(BuildContext context) {
     super.build(context);
-    return Stack(
-      children: [
-        GestureDetector(
-          onTapDown: (tapDownDetails) {
-            final key = UniqueKey();
-            widgets[key] = Positioned(
-              key: key,
-              left: tapDownDetails.localPosition.dx - 12,
-              top: tapDownDetails.localPosition.dy - 12,
-              child: GestureDetector(
-                onTap: () {
-                  setState(() {
-                    widgets.remove(key);
+    return StreamBuilder<QuerySnapshot>(
+      stream: iconsCollection04.snapshots(),
+      builder: (BuildContext context, AsyncSnapshot<QuerySnapshot> snapshot) {
+        if (snapshot.hasError) {
+          return Text('エラー: ${snapshot.error}');
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return CircularProgressIndicator();
+        }
+
+        final List<DocumentSnapshot> documents = snapshot.data!.docs;
+
+        return Stack(
+          children: [
+            GestureDetector(
+              onTapDown: (tapDownDetails) {
+                final key = UniqueKey();
+                final newIcon = IconDataPoint(
+                  key: key,
+                  left: tapDownDetails.localPosition.dx - 12,
+                  top: tapDownDetails.localPosition.dy - 12,
+                  color: iconColor,
+                );
+
+                iconsCollection04.add(newIcon.toMap());
+
+                setState(() {});
+              },
+              child: Stack(
+                children: [
+                  Container(
+                    child: Image.asset(
+                      'images/moon.webp',
+                      fit: BoxFit.contain,
+                    ),
+                    padding: EdgeInsets.all(10),
+                    color: Colors.blueGrey,
+                  ),
+                  ...documents.map((doc) {
+                    IconDataPoint iconDataPoint = IconDataPoint.fromMap(
+                        doc.data() as Map<String, dynamic>);
+                    return Positioned(
+                      key: iconDataPoint.key,
+                      left: iconDataPoint.left,
+                      top: iconDataPoint.top,
+                      child: GestureDetector(
+                        onTap: () {
+                          if (iconDataPoint.userId == getUserId()) {
+                            // ユーザーが所有するアイコンの場合にのみ削除
+                            iconsCollection04.doc(doc.id).delete();
+                          }
+                        },
+                        child: Icon(
+                          Icons.cruelty_free,
+                          color: iconDataPoint.color,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ],
+              ),
+            ),
+            // 削除ボタン
+            Positioned(
+              bottom: 20,
+              right: 20,
+              child: FloatingActionButton(
+                onPressed: () {
+                  // 'icons04' コレクションからすべてのアイコンを削除
+                  iconsCollection04.get().then((snapshot) {
+                    for (DocumentSnapshot doc in snapshot.docs) {
+                      doc.reference.delete();
+                    }
                   });
                 },
-                child: Icon(
-                  Icons.cruelty_free,
-                  color: iconColor,
-                ),
+                child: Icon(Icons.delete),
               ),
-            );
-            setState(() {});
-          },
-          child: Stack(
-            children: [
-              Container(
-                child: Image.asset(
-                  'images/moon.webp',
-                  fit: BoxFit.contain,
-                ),
-                padding: EdgeInsets.all(10),
-                color: Colors.blueGrey,
-              ),
-              ...widgets.values,
-            ],
-          ),
-        ),
-        // 全削除ボタンを追加
-        Positioned(
-          bottom: 20,
-          right: 20,
-          child: FloatingActionButton(
-            onPressed: () {
-              setState(() {
-                widgets.clear();
-              });
-            },
-            child: Icon(Icons.delete),
-          ),
-        ),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
 
-// 視認しやすい10色のリスト
+  String getUserId() {
+    // ランダムな4桁の数字を生成
+    String randomId = (1000 + Random().nextInt(9000)).toString();
+    return randomId;
+  }
+
   List<Color> colors = [
     Colors.red,
     Colors.green,
@@ -100,10 +140,45 @@ class _mapState extends State<point> with AutomaticKeepAliveClientMixin {
     Colors.white,
   ];
 
-// ランダムな視認しやすい色を生成する関数
   Color getRandomColor() {
     Random random = Random();
-    int index = random.nextInt(colors.length); // 0 to 9
+    int index = random.nextInt(colors.length);
     return colors[index];
+  }
+}
+
+class IconDataPoint {
+  final Key key;
+  final double left;
+  final double top;
+  final Color color;
+  final String userId;
+
+  IconDataPoint({
+    required this.key,
+    required this.left,
+    required this.top,
+    required this.color,
+    this.userId = '',
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'key': key.toString(),
+      'left': left,
+      'top': top,
+      'color': color.value,
+      'userId': userId,
+    };
+  }
+
+  factory IconDataPoint.fromMap(Map<String, dynamic> map) {
+    return IconDataPoint(
+      key: Key(map['key']),
+      left: map['left'],
+      top: map['top'],
+      color: Color(map['color']),
+      userId: map['userId'] ?? '', // nullチェックを追加
+    );
   }
 }
